@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz App</title>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#fff; --accent:#3b82f6; --muted:#6b7280;
+    }
+    *{box-sizing:border-box;font-family:Inter, system-ui, Arial, sans-serif}
+    body{margin:0;background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .card{width:100%;max-width:720px;background:var(--card);border-radius:12px;padding:22px;box-shadow:0 10px 30px rgba(20,30,60,0.08)}
+    h1{margin:0 0 10px;font-size:20px}
+    .meta{color:var(--muted);font-size:13px;margin-bottom:16px}
+    .question-box{padding:14px;border-radius:8px;border:1px solid #eef2ff;background:linear-gradient(180deg,#fff,#fbfdff);margin-bottom:12px}
+    .q-no{font-weight:600;color:var(--accent);margin-bottom:6px}
+    .q-text{font-size:18px;margin:0 0 10px}
+    .options{display:flex;flex-direction:column;gap:8px}
+    .option{
+      padding:10px 12px;border-radius:8px;border:1px solid #e6eefb;background:#fff;cursor:pointer;
+      display:flex;align-items:center;gap:10px;
+    }
+    .option:hover{box-shadow:0 4px 14px rgba(59,130,246,0.08)}
+    .option.selected{border-color:var(--accent);background:rgba(59,130,246,0.06)}
+    .actions{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:14px}
+    .left-buttons{display:flex;gap:8px}
+    button{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:8px;cursor:pointer}
+    button.secondary{background:#fff;color:var(--accent);border:1px solid var(--accent)}
+    button:disabled{opacity:0.5;cursor:not-allowed}
+    .progress{font-size:14px;color:var(--muted)}
+    .result{padding:14px;border-radius:8px;background:#f8fff7;border:1px solid #e6f6ea;margin-top:12px}
+    .summary{margin-top:12px}
+    .summary table{width:100%;border-collapse:collapse}
+    .summary th, .summary td{padding:8px;border-bottom:1px solid #eef2f5;text-align:left}
+    @media(max-width:520px){
+      .q-text{font-size:16px}
+      button{padding:8px 10px;font-size:14px}
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Simple Quiz App</h1>
+    <div class="meta">Answer the questions and submit to see your score.</div>
+
+    <div id="quiz-area">
+      <!-- Question will be injected here -->
+    </div>
+
+    <div class="actions">
+      <div class="left-buttons">
+        <button id="prevBtn" class="secondary">Previous</button>
+        <button id="nextBtn" class="secondary">Next</button>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="progress" id="progress">Question 1 / 1</div>
+        <button id="submitBtn">Submit</button>
+      </div>
+    </div>
+
+    <div id="result-area"></div>
+  </div>
+
+<script>
+/* --- SAMPLE QUESTIONS ---
+   You can replace/add more questions in this array.
+   Each question: {q, options:[], answer: index}
+*/
+const QUESTIONS = [
+  { q: "Which language runs in a web browser?", options: ["Java", "C++", "JavaScript", "Python"], answer: 2 },
+  { q: "What does CSS stand for?", options: ["Central Style Sheets","Cascading Style Sheets","Cascading Simple Sheets","Colorful Style Sheets"], answer: 1 },
+  { q: "Which HTML tag is used for the largest heading?", options: ["<h6>","<head>","<h1>","<heading>"], answer: 2 },
+  { q: "Which operator is used to assign a value in JavaScript?", options: ["=", "==", "===", ":"], answer: 0 },
+  { q: "Which built-in method combines two strings?", options: ["append()", "merge()", "concat()", "add()"], answer: 2 }
+];
+
+// state
+let currentIndex = 0;
+const userAnswers = Array(QUESTIONS.length).fill(null);
+
+const quizArea = document.getElementById('quiz-area');
+const progressEl = document.getElementById('progress');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const submitBtn = document.getElementById('submitBtn');
+const resultArea = document.getElementById('result-area');
+
+function renderQuestion(index){
+  const item = QUESTIONS[index];
+  quizArea.innerHTML = `
+    <div class="question-box">
+      <div class="q-no">Q${index+1}</div>
+      <div class="q-text">${escapeHtml(item.q)}</div>
+      <div class="options" id="options"></div>
+    </div>
+  `;
+  const optionsDiv = document.getElementById('options');
+  item.options.forEach((opt, i) => {
+    const el = document.createElement('div');
+    el.className = 'option' + (userAnswers[index] === i ? ' selected' : '');
+    el.dataset.index = i;
+    el.innerHTML = `<span>${String.fromCharCode(65 + i)}.</span><div style="flex:1">${escapeHtml(opt)}</div>`;
+    el.addEventListener('click', ()=> {
+      userAnswers[index] = i;
+      // update visual
+      [...optionsDiv.children].forEach(ch => ch.classList.remove('selected'));
+      el.classList.add('selected');
+    });
+    optionsDiv.appendChild(el);
+  });
+
+  progressEl.textContent = `Question ${index+1} / ${QUESTIONS.length}`;
+  prevBtn.disabled = index === 0;
+  nextBtn.disabled = index === QUESTIONS.length - 1;
+  // clear result area when navigating
+  resultArea.innerHTML = '';
+}
+
+prevBtn.addEventListener('click', ()=>{
+  if(currentIndex > 0){ currentIndex--; renderQuestion(currentIndex); }
+});
+nextBtn.addEventListener('click', ()=>{
+  if(currentIndex < QUESTIONS.length -1){ currentIndex++; renderQuestion(currentIndex); }
+});
+
+submitBtn.addEventListener('click', ()=>{
+  // ensure at least one answered
+  if(userAnswers.every(a => a === null)){
+    alert('Please answer at least one question before submitting.');
+    return;
+  }
+  showResult();
+});
+
+function showResult(){
+  let correct = 0;
+  QUESTIONS.forEach((q, i) => { if(userAnswers[i] === q.answer) correct++; });
+  const total = QUESTIONS.length;
+  const percent = Math.round((correct/total)*100);
+
+  let grade = 'Fail';
+  if(percent >= 80) grade = 'Excellent';
+  else if(percent >= 60) grade = 'Good';
+  else if(percent >= 40) grade = 'Average';
+
+  // build summary table
+  let rows = QUESTIONS.map((q,i) => {
+    const user = userAnswers[i] === null ? '—' : q.options[userAnswers[i]];
+    const correctAns = q.options[q.answer];
+    const ok = userAnswers[i] === q.answer;
+    return `<tr>
+      <td style="width:6%">${i+1}</td>
+      <td>${escapeHtml(q.q)}</td>
+      <td>${escapeHtml(user)}</td>
+      <td>${escapeHtml(correctAns)}</td>
+      <td style="color:${ok? 'green':'red'}">${ok ? '✔' : '✖'}</td>
+    </tr>`;
+  }).join('');
+
+  resultArea.innerHTML = `
+    <div class="result">
+      <strong>Score:</strong> ${correct} / ${total} &nbsp; &nbsp; (<strong>${percent}%</strong>) &nbsp; &nbsp; <span style="color:#334155">${grade}</span>
+      <div class="summary">
+        <h4 style="margin:10px 0 6px">Review</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Question</th><th>Your Answer</th><th>Correct</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button id="retryBtn">Retry</button>
+          <button id="closeBtn" class="secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('retryBtn').addEventListener('click', ()=>{
+    // reset answers & go to first
+    for(let i=0;i<userAnswers.length;i++) userAnswers[i] = null;
+    currentIndex = 0;
+    renderQuestion(currentIndex);
+    resultArea.innerHTML = '';
+  });
+  document.getElementById('closeBtn').addEventListener('click', ()=>{
+    resultArea.innerHTML = '';
+  });
+}
+
+// simple escape for HTML insertion
+function escapeHtml(text){
+  return String(text)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+
+// initial render
+renderQuestion(currentIndex);
+</script>
+</body>
+</html>
